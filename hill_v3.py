@@ -199,20 +199,44 @@ def check_if_available(file):
             return coordinates, o_v
         return None
     except ValueError:
-        return 0, []
+        return None
 
 
 def move_aed_parallel(facility_dict, ov_dict, x_y):
     x = x_y[0]
     y = x_y[1]
     initial_ov_xy = ov_dict.get(x) + ov_dict.get(y)
-    aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1],
+
+    # If number of AED in the subzone is 0, no movements is possible.
+    if facility_dict.get(y)[1] and facility_dict.get(x)[1] == 0:
+        return 0, x, y
+    elif facility_dict.get(x)[1] == 0:
+        aed_combination = [[facility_dict.get(x)[1], facility_dict.get(y)[1]],
+                           [facility_dict.get(x)[1] + 1, facility_dict.get(y)[1] - 1]]
+    elif facility_dict.get(y)[1] == 0:
+        aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1],
+                           [facility_dict.get(x)[1], facility_dict.get(y)[1]]]
+    else:
+        aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1],
                        [facility_dict.get(x)[1] + 1, facility_dict.get(y)[1] - 1]]
 
-    x_first_file = str(x) + "_" + str(aed_combination[0][0]) + ".txt"
-    y_first_file = str(y) + "_" + str(aed_combination[0][1]) + ".txt"
-    x_second_file = str(x) + "_" + str(aed_combination[1][0]) + ".txt"
-    y_second_file = str(y) + "_" + str(aed_combination[1][1]) + ".txt"
+    # if number of AEDs > number of OHCA, just read the file for max number of OHCA
+    if aed_combination[0][0] >= facility_dict.get(x)[2]:
+        x_first_file = str(x) + "_" + str(facility_dict.get(x)[2]) + ".txt"
+    else:
+        x_first_file = str(x) + "_" + str(aed_combination[0][0]) + ".txt"
+    if aed_combination[0][1] >= facility_dict.get(y)[2]:
+        y_first_file = str(y) + "_" + str(facility_dict.get(y)[2]) + ".txt"
+    else:
+        y_first_file = str(y) + "_" + str(aed_combination[0][1]) + ".txt"
+    if aed_combination[1][0] >= facility_dict.get(x)[2]:
+        x_second_file = str(x) + "_" + str(facility_dict.get(x)[2]) + ".txt"
+    else:
+        x_second_file = str(x) + "_" + str(aed_combination[1][0]) + ".txt"
+    if aed_combination[1][1] >= facility_dict.get(y)[2]:
+        y_second_file = str(y) + "_" + str(facility_dict.get(y)[2]) + ".txt"
+    else:
+        y_second_file = str(y) + "_" + str(aed_combination[1][1]) + ".txt"
 
     if check_if_available(x_first_file) is None:
         x_first_file_facility_list, x_first_file_ov = calculate_ov_facility(x, facility_dict, aed_combination[0][0])
@@ -282,6 +306,7 @@ def hill_v3():
             for result in res:
                 if result[0] > max_ov_diff:
                     updated = True
+                    max_ov_diff = result[0]
                     max_x_OV = result[1]
                     max_y_OV = result[2]
                     max_list_x = result[3]
