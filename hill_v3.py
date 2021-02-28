@@ -4,6 +4,7 @@ from functools import partial
 from itertools import combinations
 from math import sqrt
 from multiprocessing import Pool
+from random import random
 
 from ortools.linear_solver import pywraplp
 from utm import from_latlon
@@ -103,11 +104,20 @@ def get_facility_list(demand):
     return split_latlong
 
 
-def get_facility_coordinates(solution_list, facility_list):
+def get_facility_coordinates(x_OV, solution_list, facility_list, number_of_aed):
+    if x_OV == 0.0:
+        return []
     final_facility_list = []
+    special_facility_list = []
     for index, solution in enumerate(solution_list):
-        if solution == 1.0:
+        if solution > 0.5:
             final_facility_list.append(facility_list[index])
+        elif solution > 0:
+            special_facility_list.append(facility_list[index])
+    if len(final_facility_list) != number_of_aed:
+        extra_number_needed = number_of_aed - len(final_facility_list)
+        for sample in random.sample(special_facility_list, extra_number_needed):
+            final_facility_list.append(sample)
     return final_facility_list
 
 
@@ -179,7 +189,7 @@ def initial_placement(facility_dict, demand):
 def calculate_ov_facility(x, facility_dict, number_of_aed):
     x_distance_matrix, x_facility_list = get_distance_matrix(x)
     x_solution, x_OV = exact_solution(x_distance_matrix, number_of_aed)
-    list_of_x_facilities_coordinates = get_facility_coordinates(x_solution, x_facility_list)
+    list_of_x_facilities_coordinates = get_facility_coordinates(x_OV, x_solution, x_facility_list, number_of_aed)
     weighted_average_x = float(float(facility_dict.get(x)[0]) * x_OV / 100 / facility_dict.get(x)[2])
     with open('./Solutions/'+str(x)+"_"+str(number_of_aed)+".txt", 'w') as f:
         f.write(str(weighted_average_x))
