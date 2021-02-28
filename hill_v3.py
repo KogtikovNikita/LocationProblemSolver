@@ -195,6 +195,8 @@ def check_if_available(file):
             with open("./Solutions/" + file, 'r') as f:
                 data = f.read().split("\n")
                 o_v = float(data[0])
+                if o_v == 0.0:
+                    return 0.0, []
                 coordinates = [d.split("\t") for d in data[1:]]
             return coordinates, o_v
         return None
