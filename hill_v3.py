@@ -4,7 +4,7 @@ from functools import partial
 from itertools import combinations
 from math import sqrt
 from multiprocessing import Pool
-from random import random
+import random
 
 from ortools.linear_solver import pywraplp
 from utm import from_latlon
@@ -171,7 +171,7 @@ def parallel_distance(facility_coords_dict_values, demand):
 def initial_placement(facility_dict, demand):
     distance_matrix, facility_list = get_distance_matrix(demand)
     solution_list, objective_value = exact_solution(distance_matrix, facility_dict.get(demand)[1])
-    list_of_facilities_coordinates = get_facility_coordinates(solution_list, facility_list)
+    list_of_facilities_coordinates = get_facility_coordinates(objective_value, solution_list, facility_list, facility_dict.get(demand)[1])
     weighted_average = get_weighted(objective_value, facility_dict, demand)
     return [demand, list_of_facilities_coordinates, weighted_average]
 
@@ -206,7 +206,7 @@ def check_if_available(file):
                 data = f.read().split("\n")
                 o_v = float(data[0])
                 if o_v == 0.0:
-                    return 0.0, []
+                    return [], 0.0
                 coordinates = [d.split("\t") for d in data[1:]]
             return coordinates, o_v
         return None
