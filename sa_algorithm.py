@@ -188,9 +188,6 @@ def initial_placement(facility_dict, demand):
             coordinates = [d.split("\t") for d in data[1:]]
         return [demand, o_v, coordinates]
     else:
-        # all the location with zero AEDs. Therefore, return 0.0.
-        with open("./initial_solution_file_error.txt", 'a') as f:
-            f.write("File not found for: " + str(file) + "\n")
         return [demand, 0.0, []]
 
 
@@ -204,13 +201,10 @@ def read_solution_file(file):
             coordinates = [d.split("\t") for d in data[1:]]
         return coordinates, o_v
     else:
-        # all the location with zero AEDs. Therefore, return 0.0.
-        with open("./solution_file_error.txt", 'a') as f:
-            f.write("File not found for: " + str(file) + "\n")
         return [], 0.0
 
 
-def calculate_new(facility_dict, ov_dict, facility_list_dict):
+def calculate_new(facility_dict, ov_dict, facility_list_dict, method):
     new_facility_dict = facility_dict.copy()
     new_ov_dict = ov_dict.copy()
     new_facility_list_dict = facility_list_dict.copy()
@@ -222,20 +216,29 @@ def calculate_new(facility_dict, ov_dict, facility_list_dict):
         if x != y:
             break
 
-    initial_ov_xy = ov_dict.get(x) + ov_dict.get(y)
-
+    initial_ov = ov_dict.get(x) + ov_dict.get(y)
     # If number of AED in the subzone is 0, no movements is possible.
-    if facility_dict.get(y)[1] and facility_dict.get(x)[1] == 0:
+    if facility_dict.get(y)[1] == 0 and facility_dict.get(x)[1] == 0:
         return False, facility_dict, ov_dict, facility_list_dict
-    elif facility_dict.get(x)[1] == 0:
-        aed_combination = [[facility_dict.get(x)[1], facility_dict.get(y)[1]],
-                           [facility_dict.get(x)[1] + 1, facility_dict.get(y)[1] - 1]]
-    elif facility_dict.get(y)[1] == 0:
-        aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1],
-                           [facility_dict.get(x)[1], facility_dict.get(y)[1]]]
+
+    # For method 1, we get both [x+1, y-1] and [x-1, y+1]
+    if method == 1:
+        if facility_dict.get(x)[1] == 0:
+            aed_combination = [[facility_dict.get(x)[1] + 1, facility_dict.get(y)[1] - 1]]
+        elif facility_dict.get(y)[1] == 0:
+            aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1]]
+        else:
+            aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1],
+                               [facility_dict.get(x)[1] + 1, facility_dict.get(y)[1] - 1]]
+        # print("Create combination for method 1")
+
+    # For method 2, we get [x-1, y+1] only
     else:
-        aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1],
-                           [facility_dict.get(x)[1] + 1, facility_dict.get(y)[1] - 1]]
+        if facility_dict.get(x)[1] == 0:
+            return False, facility_dict, ov_dict, facility_list_dict
+        else:
+            aed_combination = [[facility_dict.get(x)[1] - 1, facility_dict.get(y)[1] + 1]]
+        # print("Create combination for method 2")
 
     # if number of AEDs > number of OHCA, just read the file for max number of OHCA
     if aed_combination[0][0] >= facility_dict.get(x)[2]:
@@ -246,46 +249,65 @@ def calculate_new(facility_dict, ov_dict, facility_list_dict):
         y_first_file = str(y) + "_" + str(facility_dict.get(y)[2]) + ".txt"
     else:
         y_first_file = str(y) + "_" + str(aed_combination[0][1]) + ".txt"
-    if aed_combination[1][0] >= facility_dict.get(x)[2]:
-        x_second_file = str(x) + "_" + str(facility_dict.get(x)[2]) + ".txt"
-    else:
-        x_second_file = str(x) + "_" + str(aed_combination[1][0]) + ".txt"
-    if aed_combination[1][1] >= facility_dict.get(y)[2]:
-        y_second_file = str(y) + "_" + str(facility_dict.get(y)[2]) + ".txt"
-    else:
-        y_second_file = str(y) + "_" + str(aed_combination[1][1]) + ".txt"
+    # print("Assigning first file name")
 
     x_first_file_facility_list, x_first_file_ov = read_solution_file(x_first_file)
-
     y_first_file_facility_list, y_first_file_ov = read_solution_file(y_first_file)
+    # print("finding solution to first file")
 
-    x_second_file_facility_list, x_second_file_ov = read_solution_file(x_second_file)
-
-    y_second_file_facility_list, y_second_file_ov = read_solution_file(y_second_file)
-
-    ov_diff = max(
-        [initial_ov_xy, x_first_file_ov + y_first_file_ov, x_second_file_ov + y_second_file_ov]) - initial_ov_xy
-
-    # Return: check_True, new_facility_dict, new_ov_dict, new_facility_list_dict
-    if ov_diff == 0:
-        return False, facility_dict, ov_dict, facility_list_dict
-
-    elif ov_diff == x_first_file_ov + y_first_file_ov - initial_ov_xy:
+    if len(aed_combination) == 1:
         new_facility_dict[x][1] = aed_combination[0][0]
         new_facility_dict[y][1] = aed_combination[0][1]
         new_ov_dict[x] = x_first_file_ov
         new_ov_dict[y] = y_first_file_ov
         new_facility_list_dict[x] = x_first_file_facility_list
         new_facility_list_dict[y] = y_first_file_facility_list
-        return True, new_facility_dict, new_ov_dict, new_facility_list_dict
+        if x_first_file_ov + y_first_file_ov > initial_ov:
+            # print("First file solution improved")
+            return True, new_facility_dict, new_ov_dict, new_facility_list_dict
+        else:
+            # print("First file solution never improve")
+            return False, new_facility_dict, new_ov_dict, new_facility_list_dict
+
     else:
-        new_facility_dict[x][1] = aed_combination[1][0]
-        new_facility_dict[y][1] = aed_combination[1][1]
-        new_ov_dict[x] = x_second_file_ov
-        new_ov_dict[y] = y_second_file_ov
-        new_facility_list_dict[x] = x_second_file_facility_list
-        new_facility_list_dict[y] = y_second_file_facility_list
-        return True, new_facility_dict, new_ov_dict, new_facility_list_dict
+        if aed_combination[1][0] >= facility_dict.get(x)[2]:
+            x_second_file = str(x) + "_" + str(facility_dict.get(x)[2]) + ".txt"
+        else:
+            x_second_file = str(x) + "_" + str(aed_combination[1][0]) + ".txt"
+        if aed_combination[1][1] >= facility_dict.get(y)[2]:
+            y_second_file = str(y) + "_" + str(facility_dict.get(y)[2]) + ".txt"
+        else:
+            y_second_file = str(y) + "_" + str(aed_combination[1][1]) + ".txt"
+        # print("Naming second file")
+        x_second_file_facility_list, x_second_file_ov = read_solution_file(x_second_file)
+        y_second_file_facility_list, y_second_file_ov = read_solution_file(y_second_file)
+        # print("Getting solution for second file")
+        if x_first_file_ov + y_first_file_ov > x_second_file_ov + y_second_file_ov:
+            new_facility_dict[x][1] = aed_combination[0][0]
+            new_facility_dict[y][1] = aed_combination[0][1]
+            new_ov_dict[x] = x_first_file_ov
+            new_ov_dict[y] = y_first_file_ov
+            new_facility_list_dict[x] = x_first_file_facility_list
+            new_facility_list_dict[y] = y_first_file_facility_list
+            if x_first_file_ov + y_first_file_ov > initial_ov:
+                # print("first file solution better than initial and second")
+                return True, new_facility_dict, new_ov_dict, new_facility_list_dict
+            else:
+                # print("file file solution better than second, worse than first")
+                return False, new_facility_dict, new_ov_dict, new_facility_list_dict
+        else:
+            new_facility_dict[x][1] = aed_combination[1][0]
+            new_facility_dict[y][1] = aed_combination[1][1]
+            new_ov_dict[x] = x_second_file_ov
+            new_ov_dict[y] = y_second_file_ov
+            new_facility_list_dict[x] = x_second_file_facility_list
+            new_facility_list_dict[y] = y_second_file_facility_list
+            if x_second_file_ov + y_second_file_ov > initial_ov:
+                # print("second file solution better than first and initial")
+                return True, new_facility_dict, new_ov_dict, new_facility_list_dict
+            else:
+                # print("second file better than first, worse than initial.")
+                return False, new_facility_dict, new_ov_dict, new_facility_list_dict
 
 
 def parallel_sa(variables):
@@ -293,9 +315,10 @@ def parallel_sa(variables):
     # variables: temperature, cooling_rate, max_iter, tol_value
     temperature = variables[0]
     cooling_rate = variables[1]
+    method = variables[2]
     maximum_iteration = 20
     tolerance_value = 0.001
-    file_name = "SA_" + str(temperature) + "_" + str(cooling_rate) + "_"
+    file_name = "SA_" + str(temperature) + "_" + str(cooling_rate) + "_" + str(method) + "_"
 
     # facility_dict -> demand: [percentage, no_of_AED, no_of_ohca]
     demand_namelist, facility_dict = get_demandNameList_and_facilityDict()
@@ -319,7 +342,7 @@ def parallel_sa(variables):
     while True:
         updated = False
         # check_True tells us if new_ov >  current_ov
-        check_True, new_facility_dict, new_ov_dict, new_facility_list_dict = calculate_new(facility_dict, ov_dict, facility_list_dict)
+        check_True, new_facility_dict, new_ov_dict, new_facility_list_dict = calculate_new(facility_dict, ov_dict, facility_list_dict, method)
         count += 1
         if check_True:
             count = 0
@@ -339,15 +362,11 @@ def parallel_sa(variables):
                     break
                 continue
             else:
-                # If same, current_ov - new_ov == 0, y will never be smaller. So just skip.
-                if current_ov == new_ov:
-                    continue
-                else:
-                    y = random()
-                    if y < exp((current_ov - new_ov) / temperature):
-                        facility_dict, ov_dict, facility_list_dict = new_facility_dict, new_ov_dict, new_facility_list_dict
-                        current_ov = sum(ov_dict.values())
-                        updated = True
+                y = random()
+                if y < exp((current_ov - new_ov) / temperature):
+                    facility_dict, ov_dict, facility_list_dict = new_facility_dict, new_ov_dict, new_facility_list_dict
+                    current_ov = sum(ov_dict.values())
+                    updated = True
 
         # Create new file every time there's a new update.
         if updated:
@@ -368,8 +387,9 @@ def parallel_sa(variables):
 
 
 def sa_algorithm():
-    # Initialise variables in list [[temp, cool_rate]]
-    variable_list = [[40, 0.5], [40, 0.6], [40, 0.7], [60, 0.5], [60, 0.6], [60, 0.7]]
+    # Initialise variables in list [[temp, cool_rate, method]]
+    variable_list = [[40, 0.5, 1], [40, 0.6, 1], [40, 0.7, 1], [60, 0.5, 1], [60, 0.6, 1], [60, 0.7, 1],
+                     [40, 0.5, 2], [40, 0.6, 2], [40, 0.7, 2], [60, 0.5, 2], [60, 0.6, 2], [60, 0.7, 2]]
     executor = ThreadPoolExecutor()
     result = executor.map(parallel_sa, variable_list)
 
